@@ -24,8 +24,8 @@ class UserController extends Controller
     public function signUp(Request $request) {
         try {
             $request->validate([
-                'first_name'=> 'required|max:100',
-                'last_name'=> 'required|max:100',
+                'first_name'=> 'required|min:2|max:100',
+                'last_name'=> 'required|min:2|max:100',
                 'password' => 'required|min:5',
                 'trainer'=> 'required|int|min:0|max:1',
                 'superadmin'=>'required|int|min:0|max:1',
@@ -66,7 +66,11 @@ class UserController extends Controller
         if ($user && $this->hasher->check($request->input('password'), $user->password))
         {
             $token = $user->createToken('authToken')->plainTextToken;
-            return response()->json(['token' => $token]);
+            $rank = 0;
+            if ($user->superadmin == 1 || $user->trainer == 1) {
+                $rank = 1;
+            }
+            return response()->json(['token' => $token, 'rank' => $rank]);
         }
     } catch (ModelNotFoundException $exception) {
         return response()->json(['message' => 'The provided credentials are incorrect.'], 422);
@@ -77,4 +81,6 @@ class UserController extends Controller
     public function authError() {
         return response()->json(['message' => 'User is not logged in'], 422);
     }
+
+
 }
