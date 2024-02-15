@@ -73,13 +73,13 @@ class UserController extends Controller
             return response()->json(['token' => $token, 'rank' => $rank]);
         }
     } catch (ModelNotFoundException $exception) {
-        return response()->json(['message' => 'The provided credentials are incorrect.'], 422);
+        return response()->json(['message' => 'The provided credentials are incorrect.'], 200);
     }
-        return response()->json(['message' => 'The provided credentials are incorrect.'], 422);
+        return response()->json(['message' => 'The provided credentials are incorrect.'], 200);
     }
 
     public function authError() {
-        return response()->json(['message' => 'User is not logged in'], 422);
+        return response()->json(['message' => 'User is not logged in'], 200);
     }
 
 

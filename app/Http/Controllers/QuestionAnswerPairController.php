@@ -4,19 +4,21 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\QuestionAnswerPair;
+use App\Models\Language;
 
 class QuestionAnswerPairController extends Controller
 {
     private QuestionAnswerPair $qap;
-
-    public function __construct(QuestionAnswerPair $qap) {
+    private Language $language;
+    public function __construct(QuestionAnswerPair $qap, Language $language) {
         $this->qap = $qap;
         $this->middleware('auth:sanctum');
+        $this->language = $language;
     }
 
 
     // private funcs
-    function basicTokenizer(string $text): array
+    private function basicTokenizer(string $text): string
     {
     $text = preg_replace("/[^\p{L}\p{Nd}\s]/u", " ", $text);
     $text = preg_replace("/\s+/u", " ", $text);
@@ -38,7 +40,7 @@ class QuestionAnswerPairController extends Controller
         }
 
         $query = $this->qap->query();
-        $query = $query->where('answered', null);
+        $query = $query->where('answer', null);
         $data = $query->get();
 
         return response()->json(['message' => 'success', 'data' => $data]);
@@ -56,7 +58,7 @@ class QuestionAnswerPairController extends Controller
         }
         $qap = $this->qap->find($request->qap_id);
         $qap->answer = $request->answer;
-        $qap->tokens = basicTokenizer($request->question);
+        $qap->tokens = $this->basicTokenizer($request->question);
         $user = $request->user();
         $qap->answerer_id = $user->id;
         if (isset($request->question_rename)) {
@@ -71,34 +73,22 @@ class QuestionAnswerPairController extends Controller
         }
     }
 
-    public function getExistingAnswer(Request $request) {
-        try {
-            $validatedData = $request->validate([
-                'qap_id' => 'required|int|exists:question_answer_pairs,id',
-            ]);
-
+    public function getExistingAnswer(int $qap_id, Request $request) {
         if (!$this->validateTrainerOrAdmin($request)) {
             return response()->json(['message' => 'Only trainers and Admins can answer questions. If you are an admin please report this.'], 400);
         }
-        if ($this->qap->find($request->qap_id)->answer == null) {
-            return response()->json(['message' => 'The question exists but has not yet been answered.'], 400);
+        $qap = $this->qap->find($qap_id);
+        if ($qap == null) {
+            return response()->json(['message' => 'The question couldnt be found.'], 400);
         }
+        return response()->json(['message' => 'Success', 'data' => $qap]);
 
-        $qap = $this->qap->find($request->qap_id);
-        return response()->json(['message' => 'Success', 'data' => $qap->answer]);
-
-        } catch (ValidationException $exception) {
-            $errors = $exception->validator->errors();
-            return response()->json(['errors' => $errors], 422);
-        }
     }
 
     public function postQuestionAndAnswer(Request $request) {
-        try {
-            $validatedData = $request->validate([
-                'question' => 'required|string',
-                'language_id' => 'required|exists:languages,id',
-                'topic_id' => 'required|exists:topics,id',
+            $request->validate([
+                'question' => 'required|unique:question_answer_pairs,question',
+                'language_id' => 'required',
                 'answer' => 'required',
             ]);
 
@@ -108,19 +98,16 @@ class QuestionAnswerPairController extends Controller
             $userobj = $request->user();
             $newQap = new QuestionAnswerPair;
             $newQap->question = $request->question;
-            $newQap->tokens = basicTokenizer($request->question);
+            $newQap->tokens = $this->basicTokenizer($request->question);
             $newQap->language_id = $request->language_id;
-            $newQap->topic_id = $request->language_id;
             $newQap->answer = $request->answer;
+            $newQap->user_asked_id = $userobj->id;
             $newQap->answerer_id = $userobj->id;
             $newQap->save();
-            return response()->json(['message' => 'Success'], 200);
 
-        } catch (ValidationException $exception) {
-            $errors = $exception->validator->errors();
-            return response()->json(['errors' => $errors], 422);
-        }
+            return response()->json(['message' => 'Success'], 200);
     }
+
 
     public function deleteQuestionAndAnswer(Request $request) {
         try {
@@ -143,38 +130,26 @@ class QuestionAnswerPairController extends Controller
     // student functions
 
     public function askQuestion(Request $request) {
-        try {
             $validatedData = $request->validate([
                 'question' => 'required|string',
                 'language_id' => 'required|numeric',
-                'topic_id' => 'required|numeric',
             ]);
             $userobj = $request->user();
             $newQap = new QuestionAnswerPair;
             $newQap->question = $request->question;
-            $newQap->tokens = basicTokenizer($request->question);
+            $newQap->tokens = $this->basicTokenizer($request->question);
             $newQap->language_id = $request->language_id;
-            $newQap->topic_id = $request->language_id;
+            $newQap->user_asked_id = $userobj->id;
+            $newQap->save();
             return response()->json(['message' => 'Question saved successfully'], 201);
-        } catch (ValidationException $exception) {
-            $errors = $exception->validator->errors();
-            return response()->json(['errors' => $errors], 422);
-            }
-    }
+        }
+
 
 
     public function getAnswers(Request $request) {
-    try {
-        // Retrieve FAQ posts from the database
-        $faqPosts = $this->qap->all();
 
-        $results = $faqPosts;
-        if (isset($request->searchtokens)) {
-            $jsonString = str_replace("'", '"', $request->searchtokens);
-            $queryArray = json_decode($jsonString, false);
-            return response()->json(["Message" => "Successfully retrieved", "Data" => $queryArray], 200);
-            $results = $this->tokenSort($queryArray); //token sort is below
-        }
+        $faqPosts = $this->qap->all();
+        $results = $faqPosts->where('answer', '!=', null);
 
         if (isset($request->language_id)) {
             $results = $results->where('language_id', $request->language_id);
@@ -186,40 +161,65 @@ class QuestionAnswerPairController extends Controller
 
         $output = $this->serialize($results);
 
-        return response()->json(["Message" => "Successfully retrieved", "Data" => $output], 200);
-    } catch (Exception $e) {
-        return response()->json(["Message" => "Error", "Errors" => $e->getMessage()], 200);
-    }
+        // search now being done on frontend
+
+        // if (isset($request->searchtokens)) {
+        //     $jsonString = str_replace("'", '"', $request->searchtokens);
+        //     $queryArray = json_decode($jsonString, false);
+        //     $results = $this->tokenSort($queryArray, $results->toArray()); //token sort is below
+        //     $output = $this->arrSerialize($results);
+        // }
+
+        return response()->json(["Message" => "Successfully retrieved", "data" => $output], 200);
     }
 
-    private function serialize($arr_of_answers) {
+   private function getLanguageNameFromId($id) {
+
+        return $this->language->find($id)->name ?? "Unknown";
+    }
+
+    private function arrSerialize($arr_of_answers) {
         $serialized = [];
-
         foreach ($arr_of_answers as $answer) {
             $serialized[] = [
-                "question" => $answer->question,
-                "answer" => $answer->answer,
-                "answerer_id" => $answer->answerer_id,
+                "question" => $answer['post']['question'],
+                "answer" => $answer['post']['answer'],
+                "answerer_id" => $answer['post']['answerer_id'],
+                "language" => $this->getLanguageNameFromId($answer['post']['language_id']),
             ];
         }
         return $serialized;
     }
 
-    private function tokenSort(array $queryArray) {
-// This function is heavy for non async, remember to define a maximum request frequency on FE
-        // If it feels janky then honestly rewrite on FE even at 0(n ^ 2) the input size is never going to be high enough to be concerning.
-        // Calculate relevance scores for each FAQ post
+    private function serialize($arr_of_qaps) {
+        $serialized = [];
+
+        foreach ($arr_of_qaps as $qap) {
+
+            $serialized[] = [
+                "question" => $qap->question,
+                "answer" => $qap->answer,
+                "answerer_id" => $qap->answerer_id,
+                "language" => $this->getLanguageNameFromId($qap->language_id),
+                "tokens" => $qap->tokens,
+            ];
+        }
+        return $serialized;
+    }
+
+    private function tokenSort(array $queryArray, array $resultsArray) : array {
+        // when indexing into
          $rankedPosts = [];
-         foreach ($queryArray as $qap) {
-             $postTokens = explode(" ", strtolower($qap->tokens)); // need to add functionality for posting questions to auto create tokens
-             $matches = array_intersect($userTokens, $postTokens);
+         foreach ($resultsArray as $qap) {
+            $question_tokens = explode(" ", $qap['tokens']);
+            // unset($question_tokens[count($question_tokens) - 1]);
+            $matches = array_intersect($queryArray, $question_tokens);
              $score = count($matches); // Simple scoring based on token matches
              $rankedPosts[] = [
                  'post' => $qap,
                  'score' => $score
              ];
          }
-
          // Sort FAQ posts based on relevance scores
          usort($rankedPosts, function ($a, $b) {
              return $b['score'] - $a['score']; // Sort in descending order of scores

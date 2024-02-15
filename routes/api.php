@@ -41,8 +41,8 @@ Route::controller(QuestionAnswerPairController::class)->group(function () {
     // --
     Route::get('/trainer/faq', 'getUnanswered');
     Route::put('/trainer/faq', 'answerQuestion'); //required: qap_id, answer | optional: question_rename
+    Route::post('/trainer/faq', 'postQuestionAndAnswer'); // required: question, language_id, answer
     Route::get('/trainer/faq/{qap_id}', 'getExistingAnswer'); //required: qap_id
-    Route::post('/trainer/faq', 'postQuestionAndAnswer'); // required: question, language_id, topic_id, answer
     Route::delete('/trainer/faq/{qap_id}', 'deleteQuestionAndAnswer'); //required: qap_id
 });
 

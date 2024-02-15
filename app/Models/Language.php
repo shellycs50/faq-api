@@ -13,4 +13,5 @@ class Language extends Model
     {
         return $this->hasMany(Topic::class);
     }
+
 }

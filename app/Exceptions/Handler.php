@@ -27,4 +27,23 @@ class Handler extends ExceptionHandler
             //
         });
     }
+
+/**
+ * Render an exception into an HTTP response.
+ *
+ * @param  \Illuminate\Http\Request  $request
+ * @param  \Throwable  $exception
+ * @return \Symfony\Component\HttpFoundation\Response
+ */
+public function render($request, Throwable $exception)
+{
+    if ($exception instanceof \Illuminate\Validation\ValidationException) {
+        return response()->json([
+            'message' => 'Validation error',
+            'errors' => $exception->errors(),
+        ], 400);
+    }
+
+    return parent::render($request, $exception);
+}
 }

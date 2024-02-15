@@ -3,15 +3,13 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 
 
-
+// not working high hanging fruit
 
  class PostAuthUserController extends Controller
 {
     public function __construct() {
         $this->middleware('auth:sanctum');
     }
-
-
 
 
     public function validateTrainerOrAdminRoute(Request $request) {
@@ -22,4 +20,6 @@ use Illuminate\Http\Request;
     }
     return response()->json(['message' => 'Success'], 200);
     }
+
+
 }

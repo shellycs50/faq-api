@@ -11,9 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('questions', function (Blueprint $table) {
-            $table->dropColumn('user_posted_id');
-            $table->foreignId('user_id');
+        Schema::table('question_answer_pairs', function (Blueprint $table) {
+            $table->foreignId('user_asked_id')->nullable()->change();
         });
     }
 
@@ -22,9 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('questions', function (Blueprint $table) {
-            $table->dropColumn('user_id');
-            $table->foreignId('user_posted_id');
+        Schema::table('question_answer_pairs', function (Blueprint $table) {
+            $table->foreignId('user_asked_id')->change();
         });
     }
 };
